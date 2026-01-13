@@ -16,12 +16,12 @@ A simple Node.js and Express web application that allows users to fetch metadata
 youtube-data-fetcher/
 ├── data/                  # Directory for storing saved playlist JSON files
 ├── css/                   # Stylesheets for the frontend
-│   └── style.css          # (Assumed)
+│   └── styles.css         # Main CSS file for styling
 ├── html/                  # HTML files for the frontend
 │   └── index.html
 ├── js/
 │   ├── youtube.js         # Core logic for YouTube API interaction
-│   └── client.js          # (Assumed) Frontend JavaScript for index.html
+│   └── client.js          # Frontend JavaScript for index.html
 ├── .env                   # Environment variables (e.g., API keys)
 ├── .dockerignore          # Files to exclude from Docker context
 ├── docker-compose.yml     # Docker Compose configuration

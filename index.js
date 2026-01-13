@@ -24,7 +24,11 @@ app.get('/api/playlists', async (req, res) => {
     const dataDir = path.join(__dirname, 'data');
     try {
         // Check if directory exists, if not, return an empty list.
-        await fs.access(dataDir);
+        try {
+            await fs.access(dataDir);
+        } catch {
+            return res.json({ success: true, playlists: [] });
+        }
         const files = await fs.readdir(dataDir);
         const jsonFiles = files.filter(file => path.extname(file).toLowerCase() === '.json');
 
