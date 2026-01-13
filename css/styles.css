@@ -1,0 +1,146 @@
+body {
+    font-family: sans-serif;
+    margin: 0;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(
+        100vh - 40px
+    ); /* Full viewport height minus body margins */
+}
+
+h1 {
+    color: #c4302b;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+input[type="text"] {
+    width: calc(100% - 22px);
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+button {
+    background-color: #c4302b;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+button:hover {
+    background-color: #a32824;
+}
+
+#filterContainer {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#filterContainer > label {
+    display: inline;
+    margin-bottom: 0;
+    font-weight: normal;
+    margin-right: 10px;
+}
+
+#filterContainer > label:first-of-type {
+    font-weight: bold;
+}
+
+#videoOutput {
+    background-color: #e9e9e9;
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 4px;
+    flex-grow: 1; /* Allow this element to grow and fill available space */
+    overflow-y: auto;
+    min-height: 200px; /* Guarantee a minimum height for the playlist */
+}
+
+#videoOutput ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#videoOutput .video-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #ccc;
+}
+
+#videoOutput .video-item:hover {
+    background-color: #ddd;
+}
+
+#videoOutput .video-item.active {
+    background-color: #007bff;
+    color: white;
+}
+
+.video-player-box {
+    width: 50%; /* Set the desired width for the player area */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.video-embed-wrapper {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    height: 0;
+    overflow: hidden;
+    background: #000;
+}
+
+#singlePlayerContainer {
+    margin-top: 20px;
+}
+
+.video-embed-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.loading {
+    color: #007bff;
+    font-style: italic;
+}
+
+.error {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.success {
+    color: #28a745;
+    font-weight: bold;
+}

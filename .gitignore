@@ -1,0 +1,10 @@
+# Dependencies
+/node_modules
+
+# Environment variables
+.env
+
+# Logs and local data
+debug.log
+*.log
+/data/

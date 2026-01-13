@@ -1,0 +1,7 @@
+# Ignore dependencies, as they are installed inside the container
+node_modules
+
+# Ignore local environment files, logs, and data
+.env
+debug.log
+data/

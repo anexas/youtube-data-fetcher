@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Data Fetcher</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>YouTube Playlist Data Fetcher</h1>
+        <form id="playlistForm">
+            <div id="savedPlaylistsContainer" style="margin-bottom: 15px;">
+                <label for="savedPlaylists">Select from a saved playlist:</label>
+                <select id="savedPlaylists" style="width: 100%; padding: 10px;"></select>
+            </div>
+            <label for="playlistUrl">Or enter a new YouTube Playlist URL:</label>
+            <input type="text" id="playlistUrl" placeholder="e.g., https://www.youtube.com/playlist?list=PL..."
+                required>
+            <button type="submit">Fetch Data</button>
+        </form>
+        <div id="summaryOutput">
+            <!-- Summary messages will go here -->
+        </div>
+        <div id="singlePlayerContainer" style="display: none;">
+            <div class="video-player-box">
+                <div class="video-embed-wrapper">
+                    <iframe id="videoPlayer" src="" title="YouTube video player" frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen></iframe>
+                </div>
+            </div>
+        </div>
+        <div id="filterContainer" style="display: none;">
+            <label>Filter display:</label>
+            <input type="radio" id="filterAll" name="videoFilter" value="all" checked>
+            <label for="filterAll">All</label>
+            <input type="radio" id="filterTitle" name="videoFilter" value="title">
+            <label for="filterTitle">Title</label>
+            <input type="radio" id="filterUrl" name="videoFilter" value="url">
+            <label for="filterUrl">URL</label>
+            <input type="radio" id="filterEmbed" name="videoFilter" value="embed">
+            <label for="filterEmbed">Embed URL</label>
+        </div>
+        <div id="videoOutput">
+            <p>Video results will appear here.</p>
+        </div>
+    </div>
+    <script src="/js/client.js"></script>
+</body>
+
+</html>
