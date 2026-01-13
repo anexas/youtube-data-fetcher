@@ -1,0 +1,16 @@
+name: 'YTDF'
+
+services:
+  youtube-data-fetcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./data:/usr/src/app/data
+    restart: unless-stopped

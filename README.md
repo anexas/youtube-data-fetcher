@@ -23,6 +23,9 @@ youtube-data-fetcher/
 │   ├── youtube.js         # Core logic for YouTube API interaction
 │   └── client.js          # (Assumed) Frontend JavaScript for index.html
 ├── .env                   # Environment variables (e.g., API keys)
+├── .dockerignore          # Files to exclude from Docker context
+├── docker-compose.yml     # Docker Compose configuration
+├── Dockerfile             # Docker image definition
 ├── index.js               # Main Express server file
 ├── package.json           # Project dependencies and scripts
 └── README.md              # This documentation file
@@ -33,7 +36,7 @@ youtube-data-fetcher/
 - Node.js (v14 or newer recommended)
 - A **YouTube Data API v3 Key**. You can obtain one from the Google Cloud Console.
 
-## Installation and Setup
+## Installation and Setup (also see Docker Setup below)
 
 1.  **Clone the repository:**
     ```bash
@@ -53,7 +56,13 @@ youtube-data-fetcher/
     YOUTUBE_API_KEY=YOUR_API_KEY_HERE
     ```
 
-4.  **Start the server:**
+4.  **Create Data Directory:**
+    Create a directory named `data` in the root of the project to store the JSON files.
+    ```bash
+    mkdir data
+    ```
+
+5.  **Start the server:**
     ```bash
     node index.js
     ```
@@ -62,6 +71,40 @@ youtube-data-fetcher/
     ```
     YouTube Data Fetcher web app running at http://localhost:3000
     Open your web browser and navigate to this address.
+    ```
+
+## Docker Setup
+
+You can also run the application using Docker and Docker Compose.
+
+1.  **Prerequisites:**
+    - Docker installed on your machine.
+    - Docker Compose installed (often included with Docker Desktop).
+
+2.  **Configuration:**
+    Ensure you have created the `.env` file with your `YOUTUBE_API_KEY` as described in the installation steps above.
+    Also, ensure the `data` directory exists locally to avoid permission issues when mounted:
+    ```bash
+    mkdir data
+    ```
+
+3.  **Run the Application:**
+    Open your terminal in the project root and run:
+    ```bash
+    docker-compose up --build -d
+    ```
+    The application will be available at `http://localhost:3000`. The `./data` folder is mounted to the container, ensuring your saved playlists persist even if the container is stopped or removed.
+
+4.  **View Logs (Optional):**
+    To view the application logs in real-time, run:
+    ```bash
+    docker-compose logs -f
+    ```
+
+5.  **Stop the Application:**
+    To stop and remove the containers, run:
+    ```bash
+    docker-compose down
     ```
 
 ## API Endpoints

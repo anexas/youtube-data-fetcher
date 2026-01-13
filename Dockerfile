@@ -17,11 +17,17 @@ FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
+# Set NODE_ENV to production for performance and security
+ENV NODE_ENV=production
+
 # Copy dependencies from the builder stage
-COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
 
 # Copy the rest of the application code
-COPY . .
+COPY --chown=node:node . .
+
+# Switch to the non-root 'node' user
+USER node
 
 # Expose the port the app runs on
 EXPOSE 3000
