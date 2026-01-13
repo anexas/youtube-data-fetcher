@@ -61,7 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'all':
                 default:
-                    videoHtml += `<li class="video-item" data-embed-url="${video.embedUrl}">${video.title}</li>`;
+                    videoHtml += `<div class="video-item" data-embed-url="${video.embedUrl}">
+                        <div><strong>Title:</strong> ${video.title}</div>
+                        <div><strong>Link:</strong> <a href="${video.url}" target="_blank">${video.url}</a></div>
+                        <div><strong>Embed:</strong> ${video.embedUrl}</div>
+                        </div>`;
                     break;
             }
             videoHtml += '</li>';
