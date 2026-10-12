@@ -8,3 +8,7 @@
 debug.log
 *.log
 /data/
+
+# Local tool config
+.freebuff/
+.roo/
