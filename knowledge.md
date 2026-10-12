@@ -49,7 +49,6 @@ Key code:
 - Client sends `Content-Type: application/json`; the server uses `express.json()`.
 
 ## Gotchas
-- `blessed` is listed in `dependencies` but is unused by application code (dead dependency).
 - Server code is CommonJS (`require`), not ESM. Source files use CRLF line endings — match them.
 - Inline player coupling: `js/client.js` renders `.video-item` elements carrying `data-embed-url`
   and drives `singlePlayerContainer` / `videoPlayer` in the markup. Keep the two in sync — if you
