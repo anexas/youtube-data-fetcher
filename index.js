@@ -13,6 +13,7 @@ app.use(express.json());
 // Serve static files from their respective directories
 app.use('/js', express.static(path.join(__dirname, 'js')));
 app.use('/css', express.static(path.join(__dirname, 'css')));
+app.use(express.static(path.join(__dirname, 'html')));
 
 // Route for the homepage
 app.get('/', (req, res) => {
