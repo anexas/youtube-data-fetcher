@@ -3,12 +3,11 @@ const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const { getPlaylistIdFromUrl, getPlaylistData, saveDataToJson } = require('./js/youtube.js');
+const { DATA_DIR, getPlaylistIdFromUrl, getPlaylistData, saveDataToJson } = require('./js/youtube.js');
 const fs = require('fs/promises');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
 const MAX_URL_LENGTH = 2048;
 
 /** Uses an environment override when it is a positive number, otherwise the fallback. */
@@ -229,8 +228,13 @@ app.use((err, req, res, next) => {
     res.status(status).json({ success: false, message });
 });
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`YouTube Data Fetcher web app running at http://localhost:${PORT}`);
-    console.log('Open your web browser and navigate to this address.');
-});
+// Start the server only when this file is run directly. Requiring it — as the
+// test suite does — hands back the app without opening a port.
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`YouTube Data Fetcher web app running at http://localhost:${PORT}`);
+        console.log('Open your web browser and navigate to this address.');
+    });
+}
+
+module.exports = app;

@@ -52,6 +52,7 @@ youtube-data-fetcher/
 ├── index.js               # Main Express server file
 ├── package.json           # Project dependencies and scripts
 ├── package-lock.json
+├── test/                  # Automated tests (run with npm test)
 ├── AGENTS.md              # Code conventions and architecture notes for agents
 └── README.md              # This documentation file
 ```
@@ -120,6 +121,7 @@ All variables are read from the environment (and from `.env`) once at startup.
 | `RATE_LIMIT_MAX` | `100` | Requests per window per IP across the whole `/api` surface. |
 | `FETCH_RATE_LIMIT_MAX` | `20` | Requests per window per IP for `/api/fetch-playlist`, which spends YouTube quota. |
 | `TRUST_PROXY` | `false` | Set to `true` only when a reverse proxy is in front, so `X-Forwarded-For` is honored. Leaving it off prevents clients from spoofing the address rate limiting keys on. |
+| `DATA_DIR` | `./data` | Where cached playlists are read and written. Point it at a mounted volume to keep the cache outside the app directory. |
 
 ## Docker Setup
 
@@ -239,5 +241,7 @@ and repeated requests from one IP are throttled (`429`; see [Configuration](#con
 - The playlist ID is read exclusively from the `list=` query parameter of the URL, so links such
   as `https://www.youtube.com/playlist?list=PL...` or
   `https://www.youtube.com/watch?v=...&list=PL...` both work.
-- There are no automated tests configured (`npm test` is the default placeholder).
+- Tests: `npm test` runs the suite built on Node's own test runner (`node --test`) — playlist ID
+  validation and atomic cache writes, the HTTP surface, both rate-limit budgets, and a jsdom pass
+  proving the page treats playlist data as text. No network access or API key is required.
 - For code conventions, storage format, and architecture, see [AGENTS.md](AGENTS.md).

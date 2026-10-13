@@ -21,7 +21,7 @@ as a JSON file on disk, and renders it in a browser UI with view filters and an 
 - Run: `node index.js` — there is no `npm start` script. Listens on `process.env.PORT` or `3000`;
   open http://localhost:3000.
 - Docker: `docker compose up` (see [Dockerfile](Dockerfile), [docker-compose.yml](docker-compose.yml)).
-- Tests: none configured — `npm test` is the default failing placeholder.
+- Tests: `npm test` runs `node --test` over `test/*.test.js`.
 - Lint / build / typecheck: none configured.
 
 ## Environment & secrets
@@ -65,6 +65,19 @@ as a JSON file on disk, and renders it in a browser UI with view filters and an 
   site ROOT via `express.static`, so `favicon.ico` resolves at `/favicon.ico` — there is no
   `/html` URL prefix.
 - Client sends `Content-Type: application/json`; the server parses with `express.json()`.
+
+## Tests
+- `npm test` is `node --test`, which runs each `test/*.test.js` file in its own process. A file
+  may therefore set environment variables before requiring the app.
+- [test/youtube.test.js](test/youtube.test.js) — playlist ID validation and atomic cache writes.
+- [test/api.test.js](test/api.test.js) — routes, status codes, headers, traversal, error bodies.
+- [test/rate-limit.test.js](test/rate-limit.test.js) — both rate-limit budgets.
+- [test/client.test.js](test/client.test.js) — jsdom, proving the client renders playlist data as text.
+- Two hooks exist for the tests and should stay: `index.js` exports the app and only listens when
+  run directly (`require.main === module`), and `DATA_DIR` overrides where the cache lives.
+- Nothing in the suite needs the network or a real API key: `getPlaylistData` is replaced with a
+  stub and all fixtures live in a temporary directory, never in `data/`.
+- `jsdom` is a devDependency used only by the client suite; production dependencies are unchanged.
 
 ## Gotchas
 - Server code is CommonJS (`require`), not ESM. Files are stored LF in git; the app sources use

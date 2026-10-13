@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const { randomUUID } = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
 
@@ -10,7 +11,9 @@ const youtube = google.youtube({
     auth: process.env.YOUTUBE_API_KEY,
 });
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// Cache directory. DATA_DIR lets a deployment (or the test suite) keep the cache
+// somewhere other than ./data.
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, '..', 'data');
 
 // Playlist IDs only ever contain these characters. Anything else (a path
 // separator, a dot, an encoded escape) is rejected, which is what stops a value
@@ -90,6 +93,33 @@ async function getPlaylistData(playlistId) {
 }
 
 /**
+ * Renames a temporary file over its target, retrying briefly. On Windows a rename
+ * can fail with EPERM/EBUSY while another process holds the target open — an
+ * indexer, a virus scanner, or a concurrent write to the same playlist — so a few
+ * short retries turn a spurious failure into a success.
+ * @param {string} from - The temporary file.
+ * @param {string} to - The cache file it becomes.
+ */
+async function renameIntoPlace(from, to) {
+    const RETRIABLE_CODES = ['EPERM', 'EACCES', 'EBUSY'];
+    const attempts = 10;
+    const delayMs = 20;
+
+    for (let attempt = 1; ; attempt++) {
+        try {
+            await fs.rename(from, to);
+            return;
+        } catch (error) {
+            if (!RETRIABLE_CODES.includes(error.code) || attempt >= attempts) {
+                throw error;
+            }
+            // Jitter, so writers that collided once do not retry in lockstep.
+            await new Promise(resolve => setTimeout(resolve, delayMs + Math.random() * delayMs));
+        }
+    }
+}
+
+/**
  * Saves the fetched playlist data to a JSON file in the /data directory.
  * The file is written to a temporary path and then renamed into place, so a
  * reader can never observe a half-written file.
@@ -105,11 +135,13 @@ async function saveDataToJson(playlistUrl, playlistId, data) {
     await fs.mkdir(DATA_DIR, { recursive: true });
 
     // The temporary file lives in the same directory as the target, because a
-    // rename is only atomic within a single filesystem.
-    const tempPath = path.join(DATA_DIR, `.${playlistId}.${process.pid}.${Date.now()}.tmp`);
+    // rename is only atomic within a single filesystem. The name must be unique
+    // per write: a coarser name lets two concurrent writes for the same playlist
+    // share one file, interleave their bytes, and leave a corrupt cache behind.
+    const tempPath = path.join(DATA_DIR, `.${playlistId}.${process.pid}.${randomUUID()}.tmp`);
     try {
         await fs.writeFile(tempPath, JSON.stringify(content, null, 2));
-        await fs.rename(tempPath, filePath);
+        await renameIntoPlace(tempPath, filePath);
     } catch (error) {
         await fs.rm(tempPath, { force: true });
         throw error;
@@ -118,4 +150,4 @@ async function saveDataToJson(playlistUrl, playlistId, data) {
     return filePath;
 }
 
-module.exports = { getPlaylistIdFromUrl, getPlaylistData, saveDataToJson };
+module.exports = { DATA_DIR, getPlaylistIdFromUrl, getPlaylistData, saveDataToJson };
