@@ -8,7 +8,83 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoPlayer = document.getElementById('videoPlayer');
     const savedPlaylistsSelect = document.getElementById('savedPlaylists');
 
+    // Playlist and video data comes from YouTube, so it is treated as untrusted:
+    // it is only ever rendered as text, and a URL reaching an href or the player
+    // has to match one of these shapes exactly.
+    const WATCH_URL_PATTERN = /^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]+$/;
+    const EMBED_URL_PATTERN = /^https:\/\/www\.youtube\.com\/embed\/[A-Za-z0-9_-]+$/;
+
     let currentVideos = []; // To store the fetched video data
+
+    /**
+     * Creates a paragraph element. Text is always assigned with textContent, so
+     * nothing in the data can be interpreted as markup.
+     * @param {string} text - The message to show.
+     * @param {string} [className] - Optional CSS class for the paragraph.
+     */
+    function createMessage(text, className) {
+        const paragraph = document.createElement('p');
+        paragraph.textContent = text;
+        if (className) {
+            paragraph.className = className;
+        }
+        return paragraph;
+    }
+
+    /** Replaces the summary area with a single message paragraph. */
+    function showMessage(text, className) {
+        summaryOutputDiv.replaceChildren(createMessage(text, className));
+    }
+
+    /**
+     * Creates the anchor for a video. The href is only set for a real YouTube
+     * watch URL; otherwise the same text is shown without a link.
+     * @param {string} url - The video's watch URL.
+     */
+    function createVideoLink(url) {
+        const link = document.createElement('a');
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = url;
+        if (WATCH_URL_PATTERN.test(url)) {
+            link.href = url;
+        }
+        return link;
+    }
+
+    /**
+     * Creates a `<div><strong>Label:</strong> value</div>` row.
+     * @param {string} label - The field name, shown in bold.
+     * @param {string|Node} content - Text or an element to show after the label.
+     */
+    function createLabelledRow(label, content) {
+        const row = document.createElement('div');
+        const labelElement = document.createElement('strong');
+        labelElement.textContent = `${label}:`;
+        const valueNode = content instanceof Node ? content : document.createTextNode(String(content ?? ''));
+        row.append(labelElement, document.createTextNode(' '), valueNode);
+        return row;
+    }
+
+    /**
+     * Builds the full-detail card for one video. The embed URL is attached to
+     * `data-embed-url` only when it is a valid YouTube embed URL, so an unexpected
+     * value can never reach the player's src.
+     * @param {object} video - A video object with title, url and embedUrl.
+     */
+    function createVideoItem(video) {
+        const item = document.createElement('div');
+        item.className = 'video-item';
+        if (EMBED_URL_PATTERN.test(video.embedUrl)) {
+            item.dataset.embedUrl = video.embedUrl;
+        }
+        item.append(
+            createLabelledRow('Title', video.title),
+            createLabelledRow('Link', createVideoLink(video.url)),
+            createLabelledRow('Embed', video.embedUrl)
+        );
+        return item;
+    }
 
     /**
      * Fetches the list of saved playlists and populates the dropdown.
@@ -18,16 +94,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/playlists');
             const result = await response.json();
             if (response.ok && result.success) {
-                savedPlaylistsSelect.innerHTML = '<option value="">-- Select a playlist --</option>'; // Default option
-                if (result.playlists.length > 0) {
-                    savedPlaylistsSelect.disabled = false;
-                    result.playlists.forEach(playlist => {
-                        const option = new Option(playlist.title, playlist.url);
-                        savedPlaylistsSelect.add(option);
+                const playlists = Array.isArray(result.playlists) ? result.playlists : [];
+                if (playlists.length > 0) {
+                    // The Option constructor assigns the label as text, so a title
+                    // containing markup stays text.
+                    savedPlaylistsSelect.replaceChildren(new Option('-- Select a playlist --', ''));
+                    playlists.forEach(playlist => {
+                        savedPlaylistsSelect.add(new Option(playlist.title, playlist.url));
                     });
+                    savedPlaylistsSelect.disabled = false;
                 } else {
                     // If there are no saved playlists, disable the dropdown.
-                    savedPlaylistsSelect.innerHTML = '<option value="">-- No saved playlists found --</option>';
+                    savedPlaylistsSelect.replaceChildren(new Option('-- No saved playlists found --', ''));
                     savedPlaylistsSelect.disabled = true;
                 }
             }
@@ -41,37 +119,33 @@ document.addEventListener('DOMContentLoaded', () => {
      * @param {string} filter - The filter to apply ('all', 'title', 'url', 'embed').
      */
     function renderVideos(filter) {
-        if (currentVideos.length === 0) {
-            videoOutputDiv.innerHTML = '<p>No video data to display.</p>';
+        const videos = currentVideos.filter(video => video && typeof video === 'object');
+        if (videos.length === 0) {
+            videoOutputDiv.replaceChildren(createMessage('No video data to display.'));
             return;
         }
 
-        let videoHtml = '<ul>';
-        currentVideos.forEach(video => {
-            videoHtml += '<li>';
+        const list = document.createElement('ul');
+        videos.forEach(video => {
+            const listItem = document.createElement('li');
             switch (filter) {
                 case 'title':
-                    videoHtml += `${video.title}`;
+                    listItem.textContent = video.title;
                     break;
                 case 'url':
-                    videoHtml += `<a href="${video.url}" target="_blank">${video.url}</a>`;
+                    listItem.append(createVideoLink(video.url));
                     break;
                 case 'embed':
-                    videoHtml += `${video.embedUrl}`;
+                    listItem.textContent = video.embedUrl;
                     break;
                 case 'all':
                 default:
-                    videoHtml += `<div class="video-item" data-embed-url="${video.embedUrl}">
-                        <div><strong>Title:</strong> ${video.title}</div>
-                        <div><strong>Link:</strong> <a href="${video.url}" target="_blank">${video.url}</a></div>
-                        <div><strong>Embed:</strong> ${video.embedUrl}</div>
-                        </div>`;
+                    listItem.append(createVideoItem(video));
                     break;
             }
-            videoHtml += '</li>';
+            list.append(listItem);
         });
-        videoHtml += '</ul>';
-        videoOutputDiv.innerHTML = videoHtml;
+        videoOutputDiv.replaceChildren(list);
     }
 
     // Add event listener for filter changes
@@ -86,11 +160,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const videoItem = event.target.closest('.video-item');
         if (!videoItem) return;
 
+        // Re-checked here as well, so an unexpected value can never be played.
+        const embedUrl = videoItem.dataset.embedUrl;
+        if (!EMBED_URL_PATTERN.test(embedUrl || '')) return;
+
         // Show the player
         singlePlayerContainer.style.display = 'block';
 
         // Update the iframe src
-        const embedUrl = videoItem.dataset.embedUrl;
         videoPlayer.src = embedUrl;
 
         // Highlight the active item
@@ -118,12 +195,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const url = isSavedPlaylist ? savedPlaylistsSelect.value : playlistUrlInput.value.trim();
 
         if (!url) {
-            summaryOutputDiv.innerHTML = '<p class="error">Please enter a playlist URL.</p>';
+            showMessage('Please enter a playlist URL.', 'error');
             return;
         }
 
-        summaryOutputDiv.innerHTML = '<p class="loading">Fetching data... please wait.</p>';
-        videoOutputDiv.innerHTML = ''; // Clear previous results
+        showMessage('Fetching data... please wait.', 'loading');
+        videoOutputDiv.replaceChildren(); // Clear previous results
         filterContainer.style.display = 'none'; // Hide filters during fetch
         singlePlayerContainer.style.display = 'none'; // Hide player
         savedPlaylistsSelect.value = ''; // Reset dropdown
@@ -136,15 +213,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (response.ok && result.success) {
-                let successMessage;
-                if (isSavedPlaylist) {
-                    successMessage = `<p class="success">SUCCESS: Data fetched from saved file: ${result.savedFilePath}</p>`;
-                } else {
-                    successMessage = `<p class="success">SUCCESS: Data fetched and saved to: ${result.savedFilePath}</p>`;
-                }
-                summaryOutputDiv.innerHTML = `${successMessage}<h3>Playlist: ${result.playlistData.playlistTitle}</h3>`;
+                const playlistData = result.playlistData || {};
+                const savedFilePath = result.savedFilePath || '(unknown path)';
 
-                currentVideos = result.playlistData.videos;
+                const summary = document.createDocumentFragment();
+                summary.append(createMessage(
+                    isSavedPlaylist
+                        ? `SUCCESS: Data fetched from saved file: ${savedFilePath}`
+                        : `SUCCESS: Data fetched and saved to: ${savedFilePath}`,
+                    'success'
+                ));
+                const heading = document.createElement('h3');
+                heading.textContent = `Playlist: ${playlistData.playlistTitle}`;
+                summary.append(heading);
+                summaryOutputDiv.replaceChildren(summary);
+
+                currentVideos = Array.isArray(playlistData.videos) ? playlistData.videos : [];
                 filterContainer.style.display = 'block'; // Show filters
                 document.getElementById('filterAll').checked = true; // Reset to 'All'
                 renderVideos('all'); // Initial render
@@ -152,10 +236,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadSavedPlaylists(); // Refresh the list only if we fetched a new playlist
                 }
             } else {
-                summaryOutputDiv.innerHTML = `<p class="error">ERROR: ${result.message || 'An unknown error occurred.'}</p>`;
+                showMessage(`ERROR: ${result.message || 'An unknown error occurred.'}`, 'error');
             }
         } catch (error) {
-            summaryOutputDiv.innerHTML = `<p class="error">Network or server error: ${error.message}</p>`;
+            showMessage(`Network or server error: ${error.message}`, 'error');
             console.error('Client-side fetch error:', error);
         }
     });

@@ -15,6 +15,22 @@ YouTube API again.
 - **Load from Cache**: Load a saved playlist straight from its local file without calling the YouTube API again.
 - **Simple Web Interface**: One page covering fetching, saved-playlist selection, filtering, and playback.
 
+## Security
+
+- **Security headers**: every response carries a [helmet](https://helmetjs.github.io/) header set
+  (CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, and more). The CSP allows frames only
+  from `youtube.com`, which is what the inline player needs.
+- **Rate limiting**: `/api` requests are capped per IP per window, and the quota-spending
+  `/api/fetch-playlist` has a tighter cap of its own. Exceeding either returns `429` with
+  `RateLimit` / `Retry-After` headers. Both caps are configurable (see below).
+- **Input validation**: a request URL must be a string under 2 KB whose `list=` value looks like a
+  real playlist ID (letters, digits, `_` and `-` only). Values such as `../something` are rejected
+  before they can be turned into a file path.
+- **No injection in the UI**: playlist and video data is rendered as text rather than markup, and a
+  link or embed is only made clickable when it is a genuine YouTube watch or embed URL.
+- **No internals leaked**: error responses are JSON with a short message. Stack traces, filesystem
+  paths, and the API key are never sent to the browser.
+
 ## Project Structure
 
 ```
@@ -92,6 +108,19 @@ youtube-data-fetcher/
     The `data/` directory is created automatically the first time a playlist is fetched, so
     there is nothing to set up by hand.
 
+## Configuration
+
+All variables are read from the environment (and from `.env`) once at startup.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `YOUTUBE_API_KEY` | — (required) | YouTube Data API v3 key used for fetching. |
+| `PORT` | `3000` | Port the server listens on. |
+| `RATE_LIMIT_WINDOW_MS` | `900000` (15 minutes) | Length of the rate-limit window. |
+| `RATE_LIMIT_MAX` | `100` | Requests per window per IP across the whole `/api` surface. |
+| `FETCH_RATE_LIMIT_MAX` | `20` | Requests per window per IP for `/api/fetch-playlist`, which spends YouTube quota. |
+| `TRUST_PROXY` | `false` | Set to `true` only when a reverse proxy is in front, so `X-Forwarded-For` is honored. Leaving it off prevents clients from spoofing the address rate limiting keys on. |
+
 ## Docker Setup
 
 You can also run the application with Docker and Docker Compose.
@@ -132,8 +161,9 @@ You can also run the application with Docker and Docker Compose.
 
 ## API Endpoints
 
-All endpoint requests and responses use JSON. When sending a request body, set
-`Content-Type: application/json`.
+All endpoint requests and responses use JSON — including error responses. When sending a request
+body, set `Content-Type: application/json`. Request bodies are capped at 10 KB (`413` beyond that),
+and repeated requests from one IP are throttled (`429`; see [Configuration](#configuration)).
 
 ### `GET /`
 
@@ -173,8 +203,9 @@ All endpoint requests and responses use JSON. When sending a request body, set
       "savedFilePath": "data/PLAYLIST_ID.json"
     }
     ```
-  - **On Error**: `400 Bad Request` for an invalid URL, or `404 Not Found` if no saved file exists
-    for that playlist ID.
+  - **On Error**: `400 Bad Request` for a missing, non-string, oversized, or unparseable URL, or
+    `404 Not Found` if no saved file exists for that playlist ID. `500 Internal Server Error` if a
+    saved file exists but cannot be parsed.
 
 ### `POST /api/fetch-playlist`
 
@@ -194,12 +225,17 @@ All endpoint requests and responses use JSON. When sending a request body, set
       "message": "Data fetched and saved successfully."
     }
     ```
-  - **On Error**: `400 Bad Request` for a missing or invalid URL, or `500 Internal Server Error`
-    if the YouTube API fetch fails.
+  - **On Error**: `400 Bad Request` for a missing or invalid URL, `429 Too Many Requests` when the
+    rate limit is reached, or `500 Internal Server Error` if the YouTube API fetch fails.
 
 ## Notes
 
 - Only public playlists can be fetched; a private or nonexistent playlist ID results in an error.
+- The `list=` value has to look like a playlist ID (`A-Z`, `a-z`, `0-9`, `_`, `-`, 10-100 characters),
+  so URLs that are not playlist links are rejected up front. YouTube's own `list=WL` (Watch Later)
+  and `list=LL` (Liked videos) are not fetchable with an API key anyway.
+- A video only becomes clickable to play when its URL is a genuine `youtube.com/watch?v=...` or
+  `youtube.com/embed/...` address; any other cached value is shown as plain text.
 - The playlist ID is read exclusively from the `list=` query parameter of the URL, so links such
   as `https://www.youtube.com/playlist?list=PL...` or
   `https://www.youtube.com/watch?v=...&list=PL...` both work.
