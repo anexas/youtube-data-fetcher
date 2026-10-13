@@ -37,7 +37,15 @@ fs.writeFileSync(path.join(ROOT_DIR, 'canary.json'), JSON.stringify({ playlistTi
 // runs offline and never spends quota.
 const youtube = require('../js/youtube.js');
 let upstreamError = new Error('upstream exploded');
-youtube.getPlaylistData = async () => { throw upstreamError; };
+// Set by the one test that needs the fetch to succeed, so the write path (and the
+// sweep that rides along with it) can be exercised over real HTTP.
+let upstreamData = null;
+youtube.getPlaylistData = async () => {
+    if (upstreamData) {
+        return upstreamData;
+    }
+    throw upstreamError;
+};
 
 const app = require('../index.js');
 
@@ -253,4 +261,23 @@ test('passes a useful upstream message through to the client', async () => {
     const response = await postJson('/api/fetch-playlist', { url: playlistUrlFor(PAYLOAD_ID) });
     assert.equal(response.status, 500);
     assert.equal((await response.json()).message, 'Playlist not found or is private.');
+});
+
+test('a successful fetch sweeps the debris of an interrupted write', async () => {
+    // The whole user-facing path, not just the storage helper: a real request that
+    // writes a cache file must also clear an orphaned temp file out of the way.
+    const freshId = 'PLfresh00000000001';
+    const stale = path.join(DATA_DIR, `.${freshId}.4242.3f1a7c9e-1111-4222-8333-444455556666.tmp`);
+    fs.writeFileSync(stale, '{"playlistTitle":"half written"');
+    const aged = new Date(Date.now() - 10 * 60 * 1000);
+    fs.utimesSync(stale, aged, aged);
+
+    upstreamData = { playlistTitle: 'Fresh playlist', videos: [] };
+    const response = await postJson('/api/fetch-playlist', { url: playlistUrlFor(freshId) });
+
+    assert.equal(response.status, 200, 'the fetch should have succeeded');
+    assert.equal(fs.existsSync(stale), false, 'a real save left the stale temp file behind');
+    assert.equal(fs.existsSync(path.join(DATA_DIR, `${freshId}.json`)), true, 'the fresh cache file is missing');
+
+    upstreamData = null;
 });

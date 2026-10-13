@@ -20,6 +20,17 @@ const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : pat
 // such as '../secret' from becoming a path outside DATA_DIR.
 const PLAYLIST_ID_PATTERN = /^[A-Za-z0-9_-]{10,100}$/;
 
+// A write holds its temp file only for the duration of one writeFile plus a
+// rename — milliseconds. A temp file older than this is debris from a write that
+// was interrupted before its rename and can be discarded; a younger one may
+// belong to a write that is in flight right now, so it is left alone.
+const STALE_TEMP_FILE_AGE_MS = 5 * 60 * 1000;
+
+// Temp files are named `.<playlistId>.<pid>.<unique>.tmp`. The unique part is a
+// UUID for current writes; earlier builds used a millisecond timestamp, and those
+// leftovers have to be recognised too or they would never be swept.
+const TEMP_FILE_PATTERN = /^\..+\.\d+\.(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\d+)\.tmp$/;
+
 /**
  * Extracts the playlist ID from a YouTube URL.
  * @param {string} url - The full YouTube playlist URL.
@@ -120,6 +131,56 @@ async function renameIntoPlace(from, to) {
 }
 
 /**
+ * Removes cache temp files orphaned by a write that was interrupted before its
+ * rename. Nothing else ever cleans them up: they are dotfiles ending in .tmp, so
+ * they are invisible both to the /api/playlists listing and to later writes, and
+ * they would otherwise sit in the cache directory forever.
+ * @param {Date} [now] - Injectable clock, so a test can age a file without waiting.
+ * @returns {Promise<string[]>} The paths that were removed.
+ */
+async function sweepStaleTempFiles(now = new Date()) {
+    let entries;
+    try {
+        entries = await fs.readdir(DATA_DIR, { withFileTypes: true });
+    } catch (error) {
+        // No cache directory yet: there is nothing to sweep.
+        if (error.code === 'ENOENT') {
+            return [];
+        }
+        throw error;
+    }
+
+    const removed = [];
+    for (const entry of entries) {
+        if (!entry.isFile() || !TEMP_FILE_PATTERN.test(entry.name)) {
+            continue;
+        }
+
+        const filePath = path.join(DATA_DIR, entry.name);
+        try {
+            const { mtimeMs } = await fs.stat(filePath);
+            // Still young enough to be a write in progress: leave it be.
+            if (now.getTime() - mtimeMs < STALE_TEMP_FILE_AGE_MS) {
+                continue;
+            }
+            await fs.rm(filePath, { force: true });
+            removed.push(filePath);
+        } catch (error) {
+            // A file that vanished underneath us needs no report; anything else is
+            // worth a line in the log rather than an exception.
+            if (error.code !== 'ENOENT') {
+                console.warn(`Could not remove the stale temp file ${entry.name}: ${error.message}`);
+            }
+        }
+    }
+
+    if (removed.length > 0) {
+        console.warn(`Removed ${removed.length} cache temp file(s) left behind by an interrupted write.`);
+    }
+    return removed;
+}
+
+/**
  * Saves the fetched playlist data to a JSON file in the /data directory.
  * The file is written to a temporary path and then renamed into place, so a
  * reader can never observe a half-written file.
@@ -133,6 +194,15 @@ async function saveDataToJson(playlistUrl, playlistId, data) {
     const filePath = path.join(DATA_DIR, `${playlistId}.json`);
 
     await fs.mkdir(DATA_DIR, { recursive: true });
+
+    // A save is the moment the cache directory is already being touched, so it is
+    // also the moment to clear out debris left by writes that died before their
+    // rename. Sweeping is opportunistic: a failure here must never fail the save.
+    try {
+        await sweepStaleTempFiles();
+    } catch (error) {
+        console.warn(`Could not sweep stale cache temp files: ${error.message}`);
+    }
 
     // The temporary file lives in the same directory as the target, because a
     // rename is only atomic within a single filesystem. The name must be unique
@@ -150,4 +220,4 @@ async function saveDataToJson(playlistUrl, playlistId, data) {
     return filePath;
 }
 
-module.exports = { DATA_DIR, getPlaylistIdFromUrl, getPlaylistData, saveDataToJson };
+module.exports = { DATA_DIR, getPlaylistIdFromUrl, getPlaylistData, saveDataToJson, sweepStaleTempFiles };

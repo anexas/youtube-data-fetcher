@@ -11,7 +11,7 @@ const path = require('node:path');
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ytdf-unit-'));
 process.env.DATA_DIR = DATA_DIR;
 
-const { getPlaylistIdFromUrl, saveDataToJson } = require('../js/youtube.js');
+const { getPlaylistIdFromUrl, saveDataToJson, sweepStaleTempFiles } = require('../js/youtube.js');
 
 const PLAYLIST_ID = 'PLxss1234567890abcdef';
 const PLAYLIST_URL = `https://www.youtube.com/playlist?list=${PLAYLIST_ID}`;
@@ -177,5 +177,88 @@ test('retries a rename that fails while the target is briefly locked', async () 
     assert.equal(attempts, 2, 'the rename should have been retried exactly once');
     const written = JSON.parse(fs.readFileSync(path.join(DATA_DIR, `${PLAYLIST_ID}.json`), 'utf8'));
     assert.equal(written.playlistTitle, 'Retried');
+    assert.deepEqual(tempFiles(), []);
+});
+
+// --- Debris from writes that were interrupted before their rename ------------
+// A kill between the writeFile and the rename strands a temp file. It is a dotfile
+// ending in .tmp, so neither /api/playlists nor a later write would ever notice it.
+
+const UUID = '3f1a7c9e-1111-4222-8333-444455556666';
+
+/** Creates a temp file shaped like the writer's own, aged by `ageMs` milliseconds. */
+function writeTempFile(name, ageMs = 10 * 60 * 1000) {
+    const filePath = path.join(DATA_DIR, name);
+    fs.writeFileSync(filePath, '{"playlistTitle":"half written"');
+    const when = new Date(Date.now() - ageMs);
+    fs.utimesSync(filePath, when, when);
+    return filePath;
+}
+
+test('sweeps a temp file left behind by an interrupted write', async () => {
+    const stale = writeTempFile(`.${PLAYLIST_ID}.99999.${UUID}.tmp`);
+
+    assert.deepEqual(await sweepStaleTempFiles(), [stale]);
+    assert.equal(fs.existsSync(stale), false, 'the orphaned temp file survived the sweep');
+});
+
+test('sweeps the timestamp-named temp files an earlier build left behind', async () => {
+    // The first implementation keyed the name on Date.now(), so leftovers in that
+    // shape exist on disk and would otherwise never be cleaned up.
+    const legacy = writeTempFile(`.${PLAYLIST_ID}.99999.1699999999999.tmp`);
+
+    assert.deepEqual(await sweepStaleTempFiles(), [legacy]);
+    assert.equal(fs.existsSync(legacy), false);
+});
+
+test('leaves a temp file alone while its write is still in flight', async () => {
+    const inFlight = writeTempFile(`.${PLAYLIST_ID}.99999.${UUID}.tmp`, 0);
+
+    assert.deepEqual(await sweepStaleTempFiles(), [], 'a live write had its temp file taken away');
+    assert.equal(fs.existsSync(inFlight), true);
+
+    fs.rmSync(inFlight, { force: true });
+});
+
+test('leaves cache files, dotfiles and look-alike names untouched', async () => {
+    const cache = path.join(DATA_DIR, `${PLAYLIST_ID}.json`);
+    fs.writeFileSync(cache, '{"playlistTitle":"kept","videos":[]}');
+    const lookAlikes = [
+        `.${PLAYLIST_ID}.tmp`,
+        `.${PLAYLIST_ID}.99999.tmp`,
+        'notes.tmp',
+        '.hidden',
+        `.${PLAYLIST_ID}.twelve.${UUID}.tmp`,
+    ].map(name => writeTempFile(name));
+
+    // Run the clock an hour forward, so age is not what saves them.
+    const removed = await sweepStaleTempFiles(new Date(Date.now() + 60 * 60 * 1000));
+
+    assert.deepEqual(removed, []);
+    for (const filePath of [cache, ...lookAlikes]) {
+        assert.equal(fs.existsSync(filePath), true, `swept something it should not have: ${path.basename(filePath)}`);
+    }
+
+    fs.rmSync(cache, { force: true });
+    for (const filePath of lookAlikes) {
+        fs.rmSync(filePath, { force: true });
+    }
+});
+
+test('sweeps without complaint when the cache directory does not exist', async () => {
+    fs.rmSync(DATA_DIR, { recursive: true, force: true });
+
+    assert.deepEqual(await sweepStaleTempFiles(), []);
+
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+});
+
+test('a save clears the debris of an interrupted write', async () => {
+    const stale = writeTempFile(`.${PLAYLIST_ID}.99999.${UUID}.tmp`);
+
+    await saveDataToJson(PLAYLIST_URL, PLAYLIST_ID, { playlistTitle: 'Fresh', videos: [] });
+
+    assert.equal(fs.existsSync(stale), false, 'the save should have swept the stale temp file');
+    assert.equal(fs.existsSync(path.join(DATA_DIR, `${PLAYLIST_ID}.json`)), true);
     assert.deepEqual(tempFiles(), []);
 });

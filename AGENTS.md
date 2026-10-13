@@ -56,9 +56,17 @@ as a JSON file on disk, and renders it in a browser UI with view filters and an 
   percent-decoded: that pattern is what keeps a value like `../secret` from becoming a path.
   Anything failing it (including a too-short `list=WL`) is rejected with 400. Non-string input
   returns `null` rather than throwing.
-- Writes are atomic: `saveDataToJson` writes to `data/.<playlistId>.<pid>.<timestamp>.tmp` and
+- Writes are atomic: `saveDataToJson` writes to `data/.<playlistId>.<pid>.<uuid>.tmp` and
   renames it over the target, so a reader never sees a half-written file. The `.tmp` suffix also
-  keeps the temporary file out of the `/api/playlists` listing.
+  keeps the temporary file out of the `/api/playlists` listing. The name must be unique per write
+  (hence `randomUUID()`): with a coarser name two concurrent writes share one temp file and can
+  interleave their bytes.
+- Every save first sweeps debris from writes that were interrupted before their rename
+  (`sweepStaleTempFiles`). Temp files are dotfiles ending in `.tmp`, so nothing else would ever
+  notice them, and they are removed only when they match the naming convention *and* are older
+  than `STALE_TEMP_FILE_AGE_MS` (5 minutes) — recent ones may belong to a write still in flight,
+  and taking that file away would fail a live request. Sweeping is best-effort: a failure is
+  logged and never fails the save that triggered it.
 - Pagination: `getPlaylistData` loops `playlistItems.list` at `maxResults: 50`, following
   `nextPageToken` until exhausted.
 - Static mounts: `/js` → `js/` and `/css` → `css/`. The `html/` directory is mounted at the
