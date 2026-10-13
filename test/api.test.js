@@ -84,7 +84,9 @@ test('serves the page with the hardened security headers', async () => {
 
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(response.headers.get('x-frame-options'), 'SAMEORIGIN');
-    assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+    // Not `no-referrer`: the player iframe is a cross-origin navigation to YouTube, and
+    // with no Referer YouTube answers "Error 153: Video player configuration error".
+    assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
     assert.equal(response.headers.get('x-powered-by'), null, 'the Express banner is still advertised');
 });
 

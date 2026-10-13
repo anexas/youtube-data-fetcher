@@ -91,6 +91,13 @@ as a JSON file on disk, and renders it in a browser UI with view filters and an 
   tighter one on `/api/fetch-playlist`). The CSP needs `frame-src https://www.youtube.com` or the
   player silently stops working, and it omits `upgrade-insecure-requests` because the app is
   normally served over plain HTTP.
+- The player also needs a **referrer**: helmet defaults to `Referrer-Policy: no-referrer`, which
+  makes the iframe navigate to YouTube with no `Referer` at all, and YouTube answers with
+  "Error 153: Video player configuration error" instead of the video. `index.js` therefore sets
+  `referrerPolicy: 'strict-origin-when-cross-origin'` (only the origin is sent), the iframe in
+  [html/index.html](html/index.html) carries the same `referrerpolicy` attribute as a second line
+  of defence, and `test/api.test.js` asserts the header so a helmet upgrade cannot silently
+  reintroduce the break.
 - The browser is never sent `innerHTML`-able data by accident: `js/client.js` sets every value with
   `textContent`, and writes an `href` or `data-embed-url` only when the value matches its
   `WATCH_URL_PATTERN` / `EMBED_URL_PATTERN`. Titles and URLs are third-party data — keep it that way.

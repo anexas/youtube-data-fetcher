@@ -40,6 +40,11 @@ app.use(helmet({
             'upgrade-insecure-requests': null,
         },
     },
+    // helmet defaults to `no-referrer`, which makes the player iframe navigate to
+    // YouTube with no Referer header at all. YouTube rejects that with "Error 153:
+    // Video player configuration error". Send the origin instead (the browser's own
+    // default) — cross-origin requests still never see the full path or query.
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
 /**

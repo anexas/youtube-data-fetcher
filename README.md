@@ -19,7 +19,10 @@ YouTube API again.
 
 - **Security headers**: every response carries a [helmet](https://helmetjs.github.io/) header set
   (CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy`, and more). The CSP allows frames only
-  from `youtube.com`, which is what the inline player needs.
+  from `youtube.com`, and the referrer policy is `strict-origin-when-cross-origin` rather than
+  helmet's `no-referrer` default — the inline player needs a referrer, or YouTube refuses the
+  embed with "Error 153: Video player configuration error". Only the origin is sent, so other
+  sites never see this app's full URL.
 - **Rate limiting**: `/api` requests are capped per IP per window, and the quota-spending
   `/api/fetch-playlist` has a tighter cap of its own. Exceeding either returns `429` with
   `RateLimit` / `Retry-After` headers. Both caps are configurable (see below).
